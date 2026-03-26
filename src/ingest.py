@@ -1,0 +1,240 @@
+"""
+PDF ingestion module for The Compliance Clerk.
+Handles PDF loading, text extraction, and image detection.
+"""
+
+import fitz  # PyMuPDF
+import pdfplumber
+from pathlib import Path
+from typing import Optional, Dict, List
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class PDFIngestor:
+    """Handles PDF ingestion and content extraction."""
+    
+    def __init__(self, pdf_path: str):
+        """
+        Initialize PDF ingestor.
+        
+        Args:
+            pdf_path: Path to PDF file
+        """
+        self.pdf_path = Path(pdf_path)
+        if not self.pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+        
+        logger.info(f"Initialized PDF ingestor for: {self.pdf_path.name}")
+    
+    def get_page_count(self) -> int:
+        """Get total number of pages in PDF."""
+        try:
+            with fitz.open(str(self.pdf_path)) as doc:
+                return doc.page_count
+        except Exception as e:
+            logger.error(f"Failed to get page count: {e}")
+            raise
+    
+    def extract_text(self, page_num: int) -> str:
+        """
+        Extract text from a page using PyMuPDF.
+        
+        Args:
+            page_num: Page number (0-indexed)
+        
+        Returns:
+            Extracted text
+        """
+        try:
+            with fitz.open(str(self.pdf_path)) as doc:
+                if page_num < 0 or page_num >= doc.page_count:
+                    raise ValueError(f"Page {page_num} out of range")
+                
+                page = doc[page_num]
+                text = page.get_text()
+                
+                return text
+        except Exception as e:
+            logger.error(f"Failed to extract text from page {page_num}: {e}")
+            raise
+    
+    def extract_text_pdfplumber(self, page_num: int) -> str:
+        """
+        Extract text from a page using pdfplumber (alternative method).
+        
+        Args:
+            page_num: Page number (0-indexed)
+        
+        Returns:
+            Extracted text
+        """
+        try:
+            with pdfplumber.open(str(self.pdf_path)) as pdf:
+                if page_num < 0 or page_num >= len(pdf.pages):
+                    raise ValueError(f"Page {page_num} out of range")
+                
+                page = pdf.pages[page_num]
+                text = page.extract_text()
+                
+                return text if text else ""
+        except Exception as e:
+            logger.error(f"Failed to extract text with pdfplumber: {e}")
+            raise
+    
+    def get_page_images(self, page_num: int) -> List[Dict]:
+        """
+        Get list of images on a page.
+        
+        Args:
+            page_num: Page number (0-indexed)
+        
+        Returns:
+            List of image info dictionaries
+        """
+        images = []
+        try:
+            with fitz.open(str(self.pdf_path)) as doc:
+                if page_num < 0 or page_num >= doc.page_count:
+                    raise ValueError(f"Page {page_num} out of range")
+                
+                page = doc[page_num]
+                image_list = page.get_images()
+                
+                for idx, img_id in enumerate(image_list):
+                    try:
+                        pix = fitz.Pixmap(doc, img_id)
+                        images.append({
+                            "index": idx,
+                            "width": pix.width,
+                            "height": pix.height,
+                            "colorspace": str(pix.colorspace),
+                            "n_components": pix.n
+                        })
+                    except Exception as e:
+                        logger.warning(f"Failed to get image {idx} info: {e}")
+                
+                logger.debug(f"Found {len(images)} images on page {page_num}")
+        except Exception as e:
+            logger.error(f"Failed to get images from page {page_num}: {e}")
+        
+        return images
+    
+    def extract_page_content(self, page_num: int) -> Dict:
+        """
+        Extract complete content from a page.
+        
+        Args:
+            page_num: Page number (0-indexed)
+        
+        Returns:
+            Dictionary with page content
+        """
+        try:
+            # Extract text using both methods and use the longer result
+            text_method1 = self.extract_text(page_num)
+            text_method2 = self.extract_text_pdfplumber(page_num)
+            text = text_method1 if len(text_method1) >= len(text_method2) else text_method2
+            
+            # Get images
+            images = self.get_page_images(page_num)
+            
+            return {
+                "page_num": page_num,
+                "text": text,
+                "has_text": bool(text.strip()),
+                "text_length": len(text),
+                "images": images,
+                "has_images": len(images) > 0,
+                "image_count": len(images)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to extract page content: {e}")
+            raise
+    
+    def extract_all_pages(self) -> List[Dict]:
+        """
+        Extract content from all pages.
+        
+        Returns:
+            List of page content dictionaries
+        """
+        try:
+            total_pages = self.get_page_count()
+            pages_content = []
+            
+            logger.info(f"Extracting from {total_pages} pages")
+            
+            for page_num in range(total_pages):
+                try:
+                    content = self.extract_page_content(page_num)
+                    pages_content.append(content)
+                except Exception as e:
+                    logger.error(f"Failed to extract page {page_num}: {e}")
+                    # Continue with next page
+                    pages_content.append({
+                        "page_num": page_num,
+                        "text": "",
+                        "has_text": False,
+                        "images": [],
+                        "has_images": False,
+                        "error": str(e)
+                    })
+            
+            logger.info(f"Extracted {len(pages_content)} pages")
+            return pages_content
+            
+        except Exception as e:
+            logger.error(f"Failed to extract all pages: {e}")
+            raise
+    
+    @staticmethod
+    def get_pdf_metadata(pdf_path: str) -> Dict:
+        """
+        Extract PDF metadata.
+        
+        Args:
+            pdf_path: Path to PDF file
+        
+        Returns:
+            Dictionary with metadata
+        """
+        try:
+            with fitz.open(str(pdf_path)) as doc:
+                metadata = doc.metadata or {}
+                return {
+                    "title": metadata.get("title", ""),
+                    "author": metadata.get("author", ""),
+                    "creator": metadata.get("creator", ""),
+                    "page_count": doc.page_count,
+                    "is_encrypted": doc.is_encrypted
+                }
+        except Exception as e:
+            logger.error(f"Failed to get metadata: {e}")
+            return {}
+
+
+def ingest_pdf(pdf_path: str) -> Dict:
+    """
+    Convenient function to ingest a PDF.
+    
+    Args:
+        pdf_path: Path to PDF file
+    
+    Returns:
+        Dictionary with all extracted content
+    """
+    ingestor = PDFIngestor(pdf_path)
+    
+    return {
+        "file_name": ingestor.pdf_path.name,
+        "file_path": str(ingestor.pdf_path),
+        "metadata": PDFIngestor.get_pdf_metadata(str(ingestor.pdf_path)),
+        "pages": ingestor.extract_all_pages()
+    }
