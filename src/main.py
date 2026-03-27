@@ -29,6 +29,7 @@ from src.audit import AuditLogger
 from src.export import ExcelExporter
 from src.batch_reporter import BatchReporter
 from src.performance_profiler import get_global_profiler
+from src.output_generator import OutputGenerator
 
 logger = get_logger(__name__)
 
@@ -333,6 +334,20 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
     click.echo(f"Tokens Used     : {result['summary']['total_tokens']}")
     click.echo(f"Excel Output    : {result['output_excel']}")
     
+    # Generate output.xlsx (always)
+    try:
+        from pathlib import Path as PathlibPath
+        output_dir = PathlibPath("output")
+        output_dir.mkdir(exist_ok=True)
+        output_xlsx_path = output_dir / "output.xlsx"
+        
+        generator = OutputGenerator()
+        generated_path = generator.generate(result, str(output_xlsx_path))
+        click.echo(f"[OK] Output File: {generated_path}")
+    except Exception as e:
+        click.echo(f"[ERROR] Failed to generate output.xlsx: {e}")
+        logger.error(f"Output generation error: {e}")
+    
     # Generate optional reports
     if with_reports:
         profiler.end()
@@ -352,20 +367,20 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
                 output_dir.mkdir(exist_ok=True)
                 report_file = output_dir / f"batch_report_{time.strftime('%Y%m%d_%H%M%S')}.txt"
                 report_file.write_text(reporter.generate_text_report(summary))
-                click.echo(f"✓ Batch Report: {report_file}")
+                click.echo(f"[OK] Batch Report: {report_file}")
             else:
-                click.echo("⚠ No audit database found for batch report")
+                click.echo("[WARN] No audit database found for batch report")
         except Exception as e:
-            click.echo(f"⚠ Failed to generate batch report: {e}")
+            click.echo(f"[ERROR] Failed to generate batch report: {e}")
         
         # Generate performance report
         try:
             output_dir = PathlibPath("output")
             output_dir.mkdir(exist_ok=True)
             perf_file, json_file = profiler.save_report(str(output_dir))
-            click.echo(f"✓ Performance Report: {perf_file}")
+            click.echo(f"[OK] Performance Report: {perf_file}")
         except Exception as e:
-            click.echo(f"⚠ Failed to generate performance report: {e}")
+            click.echo(f"[ERROR] Failed to generate performance report: {e}")
 
 
 if __name__ == "__main__":
