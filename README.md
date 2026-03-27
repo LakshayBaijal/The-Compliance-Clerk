@@ -147,6 +147,59 @@ After execution, check output/ directory:
 - **Token Efficiency:** 6-tier routing minimizes LLM usage
 - **Batch Processing:** 1800+ pages in 12 seconds
 
+# Audit Logs
+## 📊 Compliance Document Extraction - Batch Report
+
+### 🔹 Summary Statistics
+
+| Metric                 | Value |
+|----------------------|------:|
+| Total Files          | 8     |
+| Total Pages          | 8952  |
+| Document Types Found | 3     |
+| Overall Success Rate | 51.14% |
+
+---
+
+### 🔹 Status Breakdown
+
+| Status   | Count | Percentage |
+|---------|------:|-----------:|
+| SUCCESS | 4578  | 51.1%      |
+| PARTIAL | 3023  | 33.8%      |
+| FAILED  | 1351  | 15.1%      |
+
+---
+
+### 🔹 Document Type Breakdown
+
+| Type           | Count | Percentage |
+|----------------|------:|-----------:|
+| NA_PERMISSION  | 7560  | 84.5%      |
+| UNKNOWN        | 1110  | 12.4%      |
+| ECHALLAN       | 282   | 3.2%       |
+
+---
+
+### 🔹 Confidence Distribution
+
+| Range     | Pages | Avg Confidence |
+|-----------|------:|---------------:|
+| < 0.5     | 1351  | 0.000          |
+| 0.5–0.75  | 3023  | 0.509          |
+| 0.75–0.9  | 4578  | 0.750          |
+
+---
+
+### 🔹 Extraction Methods
+
+| Method         | Pages | Avg Confidence |
+|----------------|------:|---------------:|
+| deterministic  | 5159  | 0.574          |
+| llm            | 2683  | 0.748          |
+| fallback_ocr   | 225   | 0.000          |
+| none           | 885   | 0.000          |
+
 ## Troubleshooting
 
 **Missing audit.db?**
