@@ -1,0 +1,14 @@
+python tests/test_schemas.py
+python tests/test_ingest.py
+python tests/test_classify.py
+python tests/test_extractors.py
+python tests/test_llm_client.py
+python tests/test_validate.py
+python tests/test_audit.py
+python.exe tests/test_main.py
+
+
+pytest tests/ -v -s
+
+python debug_extraction.py
+python -m src.main Files/ --output output/compliance_report.xlsx --verbose

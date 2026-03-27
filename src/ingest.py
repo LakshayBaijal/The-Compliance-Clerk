@@ -87,6 +87,50 @@ class PDFIngestor:
             logger.error(f"Failed to extract text with pdfplumber: {e}")
             raise
     
+    def _extract_text_ocr(self, page_num: int) -> str:
+        """
+        Extract text from a page using OCR (Tesseract via pytesseract).
+        Fallback when text extraction fails.
+        
+        Args:
+            page_num: Page number (0-indexed)
+        
+        Returns:
+            Extracted text from OCR
+        """
+        try:
+            import pytesseract
+            from PIL import Image
+            import tempfile
+            
+            # Convert PDF page to image
+            with fitz.open(str(self.pdf_path)) as doc:
+                if page_num < 0 or page_num >= doc.page_count:
+                    return ""
+                
+                page = doc[page_num]
+                # Render page to image at 150 DPI for better OCR
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                
+                # Save to temporary file
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    pix.save(tmp.name)
+                    
+                    # Run OCR
+                    image = Image.open(tmp.name)
+                    text = pytesseract.image_to_string(image)
+                    
+                    # Clean up
+                    Path(tmp.name).unlink()
+                    
+                    return text if text else ""
+        except ImportError:
+            logger.debug("pytesseract not available for OCR")
+            return ""
+        except Exception as e:
+            logger.debug(f"OCR extraction failed: {e}")
+            return ""
+    
     def get_page_images(self, page_num: int) -> List[Dict]:
         """
         Get list of images on a page.
@@ -146,6 +190,21 @@ class PDFIngestor:
             text_method1 = self.extract_text(page_num)
             text_method2 = self.extract_text_pdfplumber(page_num)
             text = text_method1 if len(text_method1) >= len(text_method2) else text_method2
+            
+            # Check if text is corrupted (contains CID codes which indicate font encoding issues)
+            cid_count = text.count("(cid:")
+            corruption_ratio = cid_count / len(text) if text else 0
+            
+            # If more than 2% CID codes, try OCR
+            if corruption_ratio > 0.02:
+                logger.debug(f"Text corruption detected on page {page_num} ({corruption_ratio:.1%} CID codes), attempting OCR")
+                try:
+                    ocr_text = self._extract_text_ocr(page_num)
+                    if ocr_text and len(ocr_text.strip()) > 50:
+                        text = ocr_text
+                        logger.debug(f"OCR successful on page {page_num}: {len(text)} chars")
+                except Exception as e:
+                    logger.debug(f"OCR failed on page {page_num}: {e}")
             
             # Get images
             images = self.get_page_images(page_num)
