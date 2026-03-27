@@ -52,11 +52,22 @@ def _status_from_confidence(confidence: float, issues: List[str]) -> str:
     return "failed"
 
 
-def _list_pdf_files(input_path: Path) -> List[Path]:
+def _list_pdf_files(input_path: Path, recursive: bool = False) -> List[Path]:
+    """
+    List all PDF files in a given path.
+    
+    Args:
+        input_path: File or directory path
+        recursive: If True, scan subdirectories recursively
+    
+    Returns:
+        Sorted list of PDF file paths
+    """
     if input_path.is_file() and input_path.suffix.lower() == ".pdf":
         return [input_path]
     if input_path.is_dir():
-        return sorted(input_path.glob("*.pdf"))
+        pattern = "**/*.pdf" if recursive else "*.pdf"
+        return sorted(input_path.glob(pattern))
     return []
 
 
@@ -65,6 +76,7 @@ def process_batch(
     output_excel: Optional[str] = None,
     use_llm: bool = False,
     enable_audit: bool = True,
+    recursive: bool = False,
 ) -> Dict[str, Any]:
     """
     Process one PDF or a directory of PDFs.
@@ -74,13 +86,14 @@ def process_batch(
         output_excel: Excel output path (optional)
         use_llm: Enable LLM fallback for low-confidence pages
         enable_audit: Enable SQLite audit logging
+        recursive: Recursively scan subdirectories
 
     Returns:
         Dictionary containing `results`, `summary`, and `output_excel`
     """
     started = time.time()
     input_obj = Path(input_path)
-    pdf_files = _list_pdf_files(input_obj)
+    pdf_files = _list_pdf_files(input_obj, recursive=recursive)
 
     if not pdf_files:
         raise FileNotFoundError(f"No PDF files found at: {input_path}")
@@ -293,13 +306,15 @@ def process_batch(
 @click.option("--output", "output_excel", type=click.Path(path_type=Path), default=None, help="Excel output path")
 @click.option("--use-llm", is_flag=True, default=False, help="Enable LLM fallback for low-confidence extraction")
 @click.option("--disable-audit", is_flag=True, default=False, help="Disable SQLite audit logging")
-def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool):
+@click.option("--recursive", "-r", is_flag=True, default=False, help="Recursively scan subdirectories for PDFs")
+def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool):
     """Run Compliance Clerk pipeline on a PDF file or directory of PDFs."""
     result = process_batch(
         input_path=str(input_path),
         output_excel=str(output_excel) if output_excel else None,
         use_llm=use_llm,
         enable_audit=not disable_audit,
+        recursive=recursive,
     )
 
     click.echo("\n=== Compliance Clerk Run Summary ===")
