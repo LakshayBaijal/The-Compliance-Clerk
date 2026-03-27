@@ -104,20 +104,26 @@ class PDFIngestor:
                     raise ValueError(f"Page {page_num} out of range")
                 
                 page = doc[page_num]
-                image_list = page.get_images()
-                
-                for idx, img_id in enumerate(image_list):
+                image_list = page.get_images(full=True)
+
+                for idx, img_info in enumerate(image_list):
                     try:
-                        pix = fitz.Pixmap(doc, img_id)
+                        xref = img_info[0]
+                        width = img_info[2] if len(img_info) > 2 else None
+                        height = img_info[3] if len(img_info) > 3 else None
+                        bits_per_component = img_info[4] if len(img_info) > 4 else None
+                        colorspace_name = img_info[5] if len(img_info) > 5 else None
+
                         images.append({
                             "index": idx,
-                            "width": pix.width,
-                            "height": pix.height,
-                            "colorspace": str(pix.colorspace),
-                            "n_components": pix.n
+                            "xref": xref,
+                            "width": width,
+                            "height": height,
+                            "bits_per_component": bits_per_component,
+                            "colorspace": colorspace_name
                         })
                     except Exception as e:
-                        logger.warning(f"Failed to get image {idx} info: {e}")
+                        logger.warning(f"Failed to parse image {idx} info: {e}")
                 
                 logger.debug(f"Found {len(images)} images on page {page_num}")
         except Exception as e:
