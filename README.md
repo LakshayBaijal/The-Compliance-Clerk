@@ -2,7 +2,10 @@
 
 Production-grade compliance document extraction system with intelligent token optimization and comprehensive audit logging.
 
-
+## Report Link
+```br
+https://github.com/LakshayBaijal/The-Compliance-Clerk/blob/main/REPORT.md
+```
 ## Quick Start
 
 ### 1) Clone Repository
