@@ -17,7 +17,7 @@ cd The-Compliance-Clerk
 ### 2) Setup Environment
 ```br
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 Create .env file
