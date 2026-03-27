@@ -28,6 +28,9 @@ from src.image_only_extractor import ImageOnlyExtractor
 from src.validate import Validator
 from src.audit import AuditLogger
 from src.export import ExcelExporter
+from src.compliance_exporter import ComplianceExporter
+from src.compliance_csv_exporter import ComplianceCSVExporter
+from src.compliance_exporter import ComplianceExporter
 from src.batch_reporter import BatchReporter
 from src.performance_profiler import get_global_profiler
 from src.output_generator import OutputGenerator
@@ -135,43 +138,9 @@ def process_batch(
             is_image_only = has_images and (not text or not text.strip())
             force_llm_for_images = is_image_only and llm_client is not None
             
-            # Handle pages with no extractable text
+            # Handle pages with no extractable text - but still try filename-based extraction
             if (not text or not text.strip()):
-                if has_images:
-                    if not force_llm_for_images:
-                        # Image-only page but no LLM available - fail gracefully
-                        logger.warning(f"Page {page_num} is image-only but LLM not available")
-                        result_row = {
-                            "file_name": pdf_file.name,
-                            "page_number": page_num,
-                            "document_type": "UNKNOWN",
-                            "extraction_method": "none",
-                            "confidence": 0.0,
-                            "status": "failed",
-                            "tokens_used": 0,
-                            "validation_issues": ["Image-only page - OCR/LLM extraction unavailable"],
-                            "validated_data": {},
-                            "echallan_data": {},
-                            "na_data": {},
-                        }
-                        all_results.append(result_row)
-                        if audit:
-                            audit.log_extraction(
-                                file_name=pdf_file.name,
-                                page_number=page_num,
-                                document_type="UNKNOWN",
-                                extraction_method="none",
-                                confidence=0.0,
-                                fields_extracted=0,
-                                validation_issues=1,
-                                status="failed",
-                                raw_extraction=json.dumps({}),
-                                validated_extraction=json.dumps({}),
-                            )
-                        continue
-                    # else: will process with LLM below
-                    logger.info(f"Page {page_num} is image-only - using LLM for extraction")
-                else:
+                if not has_images:
                     # No text, no images - skip this page
                     logger.warning(f"Skipping page {page_num} - no readable text and no images")
                     result_row = {
@@ -203,6 +172,7 @@ def process_batch(
                             validated_extraction=json.dumps({}),
                         )
                     continue
+                # else: has_images, so we'll use image-only extraction strategy
 
             # Classify document type (uses filename as fallback for image-only pages)
             classification = classifier.classify_with_structure(text, page_num, pdf_file.name)
@@ -350,9 +320,13 @@ def process_batch(
         out_dir = Path("output")
         out_dir.mkdir(exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        out_path = out_dir / f"compliance_results_{timestamp}.xlsx"
+        out_path = out_dir / f"compliance_results_{timestamp}.csv"
 
-    exporter.export_batch_results(all_results, out_path)
+    # Export in CSV format only (primary output)
+    csv_exporter = ComplianceCSVExporter()
+    csv_exporter.export_compliance_format(all_results, out_path)
+    logger.info(f"CSV Output: {out_path}")
+    print(f"[OK] CSV Output: {out_path}")
 
     total = len(all_results)
     success = len([row for row in all_results if row["status"] == "success"])
@@ -389,7 +363,8 @@ def process_batch(
 @click.option("--disable-audit", is_flag=True, default=False, help="Disable SQLite audit logging")
 @click.option("--recursive", "-r", is_flag=True, default=False, help="Recursively scan subdirectories for PDFs")
 @click.option("--with-reports", is_flag=True, default=False, help="Generate batch report and performance report after processing")
-def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool, with_reports: bool):
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Enable verbose logging output")
+def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool, with_reports: bool, verbose: bool):
     """Run Compliance Clerk pipeline on a PDF file or directory of PDFs."""
     profiler = get_global_profiler()
     if with_reports:
@@ -410,21 +385,9 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
     click.echo(f"Failed          : {result['summary']['failed']}")
     click.echo(f"Success Rate    : {result['summary']['success_rate']}%")
     click.echo(f"Tokens Used     : {result['summary']['total_tokens']}")
-    click.echo(f"Excel Output    : {result['output_excel']}")
+    click.echo(f"CSV Output      : {result['output_excel']}")
     
-    # Generate output.xlsx (always)
-    try:
-        from pathlib import Path as PathlibPath
-        output_dir = PathlibPath("output")
-        output_dir.mkdir(exist_ok=True)
-        output_xlsx_path = output_dir / "output.xlsx"
-        
-        generator = OutputGenerator()
-        generated_path = generator.generate(result, str(output_xlsx_path))
-        click.echo(f"[OK] Output File: {generated_path}")
-    except Exception as e:
-        click.echo(f"[ERROR] Failed to generate output.xlsx: {e}")
-        logger.error(f"Output generation error: {e}")
+    # All output is now CSV (no separate output.xlsx generation needed)
     
     # Generate optional reports
     if with_reports:

@@ -101,7 +101,8 @@ def test_process_batch_file_happy_path():
             assert result["summary"]["success"] == 2
             assert result["summary"]["total_tokens"] == 0
             assert len(result["results"]) == 2
-            exporter.export_batch_results.assert_called_once()
+            # Note: ExcelExporter is no longer used (CSV-only output)
+            # exporter.export_batch_results.assert_called_once()
             assert audit.log_extraction.call_count == 2
 
             print("[PASS] `process_batch` handles single PDF end-to-end")
@@ -192,6 +193,7 @@ def test_process_batch_llm_path_logs_tokens():
             llm.should_use_llm.return_value = True
             llm.extract_with_fallback.return_value = ({"challan_number": "CHL"}, 0.7, 120)
             llm.model = "mixtral-8x7b-32768"
+            llm.confidence_threshold = 0.75  # Add confidence_threshold as a float, not MagicMock
             mock_llm_cls.return_value = llm
 
             validator = MagicMock()

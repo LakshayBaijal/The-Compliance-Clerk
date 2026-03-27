@@ -26,18 +26,12 @@ class LLMClient:
     def __init__(self):
         """Initialize Groq client with API key from environment."""
         try:
-            # Try initializing Groq with just the API key (newer versions don't accept proxies param)
+            # Groq 0.4.2+ requires just the API key, no extra parameters
             self.client = Groq(api_key=config.GROQ_API_KEY)
-        except TypeError as e:
-            if "proxies" in str(e):
-                # If proxies error, try alternative initialization
-                logger.debug(f"Groq initialization error (proxies): {e}, retrying...")
-                import os
-                os.environ["GROQ_API_KEY"] = config.GROQ_API_KEY
-                from groq import Groq as GroqClient
-                self.client = GroqClient()
-            else:
-                raise
+            logger.info("Groq client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Groq client: {e}")
+            raise
         
         self.model = config.LLM_MODEL
         self.confidence_threshold = config.CONFIDENCE_THRESHOLD  # 0.75

@@ -1,14 +1,83 @@
-python tests/test_schemas.py
-python tests/test_ingest.py
-python tests/test_classify.py
-python tests/test_extractors.py
-python tests/test_llm_client.py
-python tests/test_validate.py
-python tests/test_audit.py
-python.exe tests/test_main.py
-python.exe verify_output.py
 
+
+Process PDFs (Main Command)
+## Command 1
+python -m src.main "Files"
+
+# Test 1: Schema validation
+python tests/test_schemas.py
+
+# Test 2: PDF ingestion
+python tests/test_ingest.py
+
+# Test 3: Document classification
+python tests/test_classify.py
+
+# Test 4: Data extraction
+python tests/test_extractors.py
+
+# Test 5: LLM client
+python tests/test_llm_client.py
+
+# Test 6: Validation logic
+python tests/test_validate.py
+
+# Test 7: Audit logging
+python tests/test_audit.py
+
+# Test 8: Main pipeline
+python tests/test_main.py
+
+# Test 9: Output format verification
+python verify_output.py
+
+🧪 Run All Tests Together
+# Quick test run (recommended)
+pytest tests/ -q
+
+# Verbose test run (see details)
+pytest tests/ -v
+
+# Very detailed test run (see everything)
 pytest tests/ -v -s
 
-python debug_extraction.py
-python -m src.main Files/ --output output/compliance_report.xlsx --verbose
+# Show code coverage
+pytest tests/ --cov=src
+
+
+# Verify OCR capability
+python test_ocr.py
+
+
+🎯 Processing Single PDF
+# Process ONE lease deed PDF
+## Command 2
+python -m src.main "Files\Rampura Mota S.No.-256 Lease Deed No.-854.pdf"
+
+# Process ONE challan PDF
+## Command 3
+python -m src.main "Files\256 FINAL ORDER.pdf"
+
+# Process with LLM enabled (requires API key)
+## Command 4
+python -m src.main "Files\Rampura Mota S.No.-256 Lease Deed No.-854.pdf" --use-llm
+
+📊 Advanced Processing Commands
+# Process all PDFs with recursive scanning
+## Command 5
+python -m src.main "Files" --recursive
+
+# Process all PDFs with batch reports
+## Command 6
+python -m src.main "Files" --with-reports
+
+# Process all PDFs with custom output location
+## Command 7
+python -m src.main "Files" --verbose
+
+# Process with all features enabled
+## Command 8
+python -m src.main "Files" --recursive --use-llm --with-reports --verbose
+
+Step 5: View Logs
+type output\batch_report_*.txt

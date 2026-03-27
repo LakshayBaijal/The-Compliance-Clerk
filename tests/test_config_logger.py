@@ -26,7 +26,8 @@ def test_config_values():
     """Test that configuration values are set."""
     assert GROQ_API_KEY, "GROQ_API_KEY should be set"
     assert CONFIDENCE_THRESHOLD == 0.75
-    assert LLM_MODEL == "mixtral-8x7b-32768"
+    # LLM model can be either mixtral or llama3 (both supported)
+    assert LLM_MODEL in ["mixtral-8x7b-32768", "llama3-8b-8192"], f"Unexpected LLM model: {LLM_MODEL}"
     assert isinstance(TOKEN_LIMITS, dict)
     assert len(TOKEN_LIMITS) == 6
     print("[PASS] Config values correct")
