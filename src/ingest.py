@@ -90,7 +90,8 @@ class PDFIngestor:
     def _extract_text_ocr(self, page_num: int) -> str:
         """
         Extract text from a page using OCR (Tesseract via pytesseract).
-        Fallback when text extraction fails.
+        Supports multiple languages including Gujarati.
+        Fallback when text extraction fails (for scanned documents).
         
         Args:
             page_num: Page number (0-indexed)
@@ -109,26 +110,61 @@ class PDFIngestor:
                     return ""
                 
                 page = doc[page_num]
-                # Render page to image at 150 DPI for better OCR
+                # Render page to image at 150 DPI for better OCR (higher DPI = better quality)
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 
                 # Save to temporary file
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                     pix.save(tmp.name)
                     
-                    # Run OCR
-                    image = Image.open(tmp.name)
-                    text = pytesseract.image_to_string(image)
-                    
-                    # Clean up
-                    Path(tmp.name).unlink()
-                    
-                    return text if text else ""
+                    try:
+                        image = Image.open(tmp.name)
+                        
+                        # Try multi-language OCR: Gujarati + English
+                        # This helps with mixed-language documents
+                        try:
+                            # Attempt Gujarati + English OCR
+                            text = pytesseract.image_to_string(
+                                image, 
+                                lang='guj+eng',  # Gujarati + English
+                                config='--psm 1'  # Assume single uniform block of text
+                            )
+                            logger.debug(f"OCR used Gujarati+English on page {page_num}")
+                        except:
+                            # Fallback to English only if language not available
+                            text = pytesseract.image_to_string(
+                                image,
+                                lang='eng',
+                                config='--psm 1'
+                            )
+                            logger.debug(f"OCR used English (guj lang unavailable) on page {page_num}")
+                        
+                        # Clean up temp file
+                        Path(tmp.name).unlink()
+                        
+                        # Return text (can be empty string if no text found)
+                        result = text.strip() if text else ""
+                        if result:
+                            logger.debug(f"OCR extracted {len(result)} chars from page {page_num}")
+                        return result
+                        
+                    except Exception as ocr_e:
+                        # Fallback to basic English if config fails
+                        logger.debug(f"OCR config failed, trying basic extraction: {ocr_e}")
+                        try:
+                            text = pytesseract.image_to_string(image)
+                            Path(tmp.name).unlink()
+                            return text.strip() if text else ""
+                        except Exception as basic_e:
+                            logger.debug(f"Basic OCR also failed: {basic_e}")
+                            Path(tmp.name).unlink()
+                            return ""
+                            
         except ImportError:
-            logger.debug("pytesseract not available for OCR")
+            logger.debug("pytesseract not available for OCR - install pytesseract and Tesseract binary")
             return ""
         except Exception as e:
-            logger.debug(f"OCR extraction failed: {e}")
+            logger.debug(f"OCR extraction failed on page {page_num}: {e}")
             return ""
     
     def get_page_images(self, page_num: int) -> List[Dict]:
@@ -186,28 +222,51 @@ class PDFIngestor:
             Dictionary with page content
         """
         try:
+            # Get images FIRST to decide if we need OCR
+            images = self.get_page_images(page_num)
+            has_images = len(images) > 0
+            
             # Extract text using both methods and use the longer result
             text_method1 = self.extract_text(page_num)
             text_method2 = self.extract_text_pdfplumber(page_num)
             text = text_method1 if len(text_method1) >= len(text_method2) else text_method2
             
-            # Check if text is corrupted (contains CID codes which indicate font encoding issues)
-            cid_count = text.count("(cid:")
-            corruption_ratio = cid_count / len(text) if text else 0
+            # Determine if we should use OCR
+            should_use_ocr = False
+            ocr_reason = None
             
-            # If more than 2% CID codes, try OCR
-            if corruption_ratio > 0.02:
-                logger.debug(f"Text corruption detected on page {page_num} ({corruption_ratio:.1%} CID codes), attempting OCR")
+            # Condition 1: Page has images but NO extractable text (scanned document)
+            if has_images and not text.strip():
+                should_use_ocr = True
+                ocr_reason = "Image-only page (scanned document)"
+            
+            # Condition 2: Very minimal text despite having images (mostly scanned with some artifacts)
+            elif has_images and len(text.strip()) < 100:
+                should_use_ocr = True
+                ocr_reason = f"Minimal text ({len(text.strip())} chars) + images on page"
+            
+            # Condition 3: Text corruption detected (CID codes > 2%)
+            elif text.strip():
+                cid_count = text.count("(cid:")
+                corruption_ratio = cid_count / len(text) if text else 0
+                if corruption_ratio > 0.02:
+                    should_use_ocr = True
+                    ocr_reason = f"Text corruption ({corruption_ratio:.1%} CID codes)"
+            
+            # Run OCR if needed
+            if should_use_ocr:
+                logger.debug(f"Attempting OCR on page {page_num}: {ocr_reason}")
                 try:
                     ocr_text = self._extract_text_ocr(page_num)
                     if ocr_text and len(ocr_text.strip()) > 50:
                         text = ocr_text
-                        logger.debug(f"OCR successful on page {page_num}: {len(text)} chars")
+                        logger.info(f"OCR successful on page {page_num}: extracted {len(text)} chars ({ocr_reason})")
+                    elif ocr_text and len(ocr_text.strip()) > 0:
+                        logger.debug(f"OCR partial on page {page_num}: only {len(ocr_text.strip())} chars")
+                    else:
+                        logger.debug(f"OCR returned empty text on page {page_num}")
                 except Exception as e:
                     logger.debug(f"OCR failed on page {page_num}: {e}")
-            
-            # Get images
-            images = self.get_page_images(page_num)
             
             return {
                 "page_num": page_num,
@@ -215,8 +274,9 @@ class PDFIngestor:
                 "has_text": bool(text.strip()),
                 "text_length": len(text),
                 "images": images,
-                "has_images": len(images) > 0,
-                "image_count": len(images)
+                "has_images": has_images,
+                "image_count": len(images),
+                "ocr_used": should_use_ocr
             }
             
         except Exception as e:

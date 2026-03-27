@@ -24,6 +24,7 @@ from src.ingest import ingest_pdf
 from src.classify import DocumentClassifier
 from src.extract_echallan import extract_echallan
 from src.extract_na import extract_na_permission
+from src.image_only_extractor import ImageOnlyExtractor
 from src.validate import Validator
 from src.audit import AuditLogger
 from src.export import ExcelExporter
@@ -106,11 +107,17 @@ def process_batch(
     audit = AuditLogger() if enable_audit else None
     exporter = ExcelExporter()
 
+    # Always initialize LLM client for image-heavy documents (scanned PDFs)
+    # Even if use_llm=False, we need it for image-only pages
     llm_client = None
-    if use_llm:
+    try:
         from src.llm_client import LLMClient
-
         llm_client = LLMClient()
+        logger.info("LLM Client initialized for fallback on image-only pages")
+    except Exception as e:
+        logger.warning(f"Failed to initialize LLM client: {e}")
+        if use_llm:
+            raise  # Re-raise if user specifically requested LLM
 
     all_results: List[Dict[str, Any]] = []
 
@@ -122,12 +129,48 @@ def process_batch(
             page_num = page.get("page_num", 0)
             text = page.get("text", "")
             has_images = page.get("has_images", False)
+            ocr_used = page.get("ocr_used", False)
+            
+            # Determine if we should force LLM for image-only pages
+            is_image_only = has_images and (not text or not text.strip())
+            force_llm_for_images = is_image_only and llm_client is not None
             
             # Handle pages with no extractable text
             if (not text or not text.strip()):
                 if has_images:
-                    # Image-only page - still try to process but mark as partial/failed
-                    logger.info(f"Page {page_num} has images but no extractable text")
+                    if not force_llm_for_images:
+                        # Image-only page but no LLM available - fail gracefully
+                        logger.warning(f"Page {page_num} is image-only but LLM not available")
+                        result_row = {
+                            "file_name": pdf_file.name,
+                            "page_number": page_num,
+                            "document_type": "UNKNOWN",
+                            "extraction_method": "none",
+                            "confidence": 0.0,
+                            "status": "failed",
+                            "tokens_used": 0,
+                            "validation_issues": ["Image-only page - OCR/LLM extraction unavailable"],
+                            "validated_data": {},
+                            "echallan_data": {},
+                            "na_data": {},
+                        }
+                        all_results.append(result_row)
+                        if audit:
+                            audit.log_extraction(
+                                file_name=pdf_file.name,
+                                page_number=page_num,
+                                document_type="UNKNOWN",
+                                extraction_method="none",
+                                confidence=0.0,
+                                fields_extracted=0,
+                                validation_issues=1,
+                                status="failed",
+                                raw_extraction=json.dumps({}),
+                                validated_extraction=json.dumps({}),
+                            )
+                        continue
+                    # else: will process with LLM below
+                    logger.info(f"Page {page_num} is image-only - using LLM for extraction")
                 else:
                     # No text, no images - skip this page
                     logger.warning(f"Skipping page {page_num} - no readable text and no images")
@@ -161,6 +204,7 @@ def process_batch(
                         )
                     continue
 
+            # Classify document type (uses filename as fallback for image-only pages)
             classification = classifier.classify_with_structure(text, page_num, pdf_file.name)
             doc_type = _to_doc_type(classification)
 
@@ -168,21 +212,44 @@ def process_batch(
             extraction_method = "deterministic"
             deterministic_conf = classification.get("confidence", 0.0)
 
+            # For image-only pages, boost classification confidence from filename hints
+            if is_image_only and doc_type != DocumentType.UNKNOWN:
+                logger.debug(f"Image-only page: Using filename-based classification: {doc_type.value}")
+                deterministic_conf = 0.6  # Boost confidence for filename-based classification
+
+            # Extract using deterministic method
             if doc_type == DocumentType.ECHALLAN:
-                det = extract_echallan(text)
-                extracted_data = det["data"].model_dump(exclude_none=True)
-                det_confidence = float(det.get("overall_confidence", 0.0))
-                # Use extraction confidence, but if 0, use classification confidence
+                if is_image_only:
+                    # Use image-only extraction for documents with no text
+                    extracted_data, det_confidence = ImageOnlyExtractor.extract_echallan_from_image(
+                        pdf_file.name, page_num
+                    )
+                    fields_extracted = sum(1 for v in extracted_data.values() if v is not None)
+                    logger.info(f"Image-only eChallan: {fields_extracted} fields from filename")
+                else:
+                    det = extract_echallan(text)
+                    extracted_data = det["data"].model_dump(exclude_none=True)
+                    det_confidence = float(det.get("overall_confidence", 0.0))
+                    fields_extracted = int(det.get("extracted_fields", 0))
+                
                 confidence = det_confidence if det_confidence > 0 else deterministic_conf
-                fields_extracted = int(det.get("extracted_fields", 0))
                 bucket_key = "echallan_data"
+                
             elif doc_type == DocumentType.NA_PERMISSION:
-                det = extract_na_permission(text)
-                extracted_data = det["data"].model_dump(exclude_none=True)
-                det_confidence = float(det.get("overall_confidence", 0.0))
-                # Use extraction confidence, but if 0, use classification confidence
+                if is_image_only:
+                    # Use image-only extraction for documents with no text
+                    extracted_data, det_confidence = ImageOnlyExtractor.extract_na_permission_from_image(
+                        pdf_file.name, page_num
+                    )
+                    fields_extracted = sum(1 for v in extracted_data.values() if v is not None)
+                    logger.info(f"Image-only NA_PERMISSION: {fields_extracted} fields from filename")
+                else:
+                    det = extract_na_permission(text)
+                    extracted_data = det["data"].model_dump(exclude_none=True)
+                    det_confidence = float(det.get("overall_confidence", 0.0))
+                    fields_extracted = int(det.get("extracted_fields", 0))
+                
                 confidence = det_confidence if det_confidence > 0 else deterministic_conf
-                fields_extracted = int(det.get("extracted_fields", 0))
                 bucket_key = "na_data"
             else:
                 # Document type not recognized
@@ -193,17 +260,28 @@ def process_batch(
                 bucket_key = "unknown_data"
                 extraction_method = "none"
 
-            if use_llm and llm_client and doc_type != DocumentType.UNKNOWN and llm_client.should_use_llm(confidence):
-                extraction_method = "llm"
-                llm_data, llm_confidence, tokens_used = llm_client.extract_with_fallback(
-                    text=text,
-                    doc_type=doc_type,
-                    deterministic_result=extracted_data,
-                    deterministic_confidence=confidence,
-                )
-                extracted_data = llm_data
-                confidence = llm_confidence
+            # Use LLM if:
+            # 1. User requested it AND confidence is low
+            # 2. OR it's an image-only page (force LLM)
+            should_use_llm_here = (use_llm or force_llm_for_images) and llm_client
+            
+            if should_use_llm_here and doc_type != DocumentType.UNKNOWN:
+                # For image-only pages, lower threshold to trigger LLM
+                threshold = 0.5 if is_image_only else llm_client.confidence_threshold
+                
+                if is_image_only or confidence < threshold:
+                    extraction_method = "llm"
+                    llm_data, llm_confidence, tokens_used = llm_client.extract_with_fallback(
+                        text=text if text.strip() else f"[Image-only page - Document type: {doc_type.value}]",
+                        doc_type=doc_type,
+                        deterministic_result=extracted_data,
+                        deterministic_confidence=confidence,
+                    )
+                    extracted_data = llm_data
+                    confidence = llm_confidence
+                    logger.info(f"LLM extraction on page {page_num}: confidence={confidence:.3f}, tokens={tokens_used}")
 
+            # Validate extracted data
             if doc_type == DocumentType.ECHALLAN:
                 validated, confidence_adj, issues = validator.validate_echallan(dict(extracted_data))
                 validated_data = validated.model_dump(exclude_none=True)
@@ -251,7 +329,7 @@ def process_batch(
                     audit.log_decision(
                         extraction_id=extraction_id,
                         decision_type="fallback_to_llm",
-                        reason="Low deterministic confidence",
+                        reason="Low deterministic confidence or image-only page",
                         action_taken="Applied LLM extraction",
                         confidence_before=confidence,
                         confidence_after=final_confidence,

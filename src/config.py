@@ -47,7 +47,7 @@ TOKEN_LIMITS = {
 }
 
 # LLM Configuration
-LLM_MODEL = "mixtral-8x7b-32768"
+LLM_MODEL = "llama3-8b-8192"  # Standard model available on Groq
 LLM_TEMPERATURE = 0.3
 LLM_MAX_TOKENS = 1024
 
