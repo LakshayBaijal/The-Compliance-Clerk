@@ -19,9 +19,8 @@ cd The-Compliance-Clerk
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env
 ```
-
+Create .env file
 ### 3) Configure API Key
 Edit .env and add your Groq API key:
 ```env
