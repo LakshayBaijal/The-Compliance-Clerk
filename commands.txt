@@ -80,4 +80,5 @@ python -m src.main "Files" --verbose
 python -m src.main "Files" --recursive --use-llm --with-reports --verbose
 
 Step 5: View Logs
+## Command 9
 type output\batch_report_*.txt
