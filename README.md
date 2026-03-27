@@ -24,35 +24,134 @@ Edit .env and add your Groq API key:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### 4) Run Tests (Recommended)
+## Run Test Files
+### 1) Test 1: Schema validation
 ```br
-pytest -q  # All 101 tests
-pytest -v  # Verbose output
+python tests/test_schemas.py
+```
+### 2) Test 2: PDF ingestion
+```br
+python tests/test_ingest.py
 ```
 
-### 5) Execute Pipeline
-
-**Single PDF:**
+### 3) Test 3: Document classification
 ```br
-python -m src.main sample.pdf --output results.xlsx
+python tests/test_classify.py
 ```
 
-**Directory (with reports):**
+### 4) Test 4: Data extraction
 ```br
-python -m src.main ./pdf_folder/ --with-reports
+python tests/test_extractors.py
 ```
 
-**With LLM Fallback:**
+### 5) Test 5: LLM client
 ```br
-python -m src.main ./pdf_folder/ --use-llm --with-reports
+python tests/test_llm_client.py
 ```
 
-**Recursive Subdirectories:**
+### 6) Test 6: Validation logic
 ```br
-python -m src.main ./pdf_folder/ --recursive --with-reports
+python tests/test_validate.py
 ```
 
-## Features
+### 7) Test 7: Audit logging
+```br
+python tests/test_audit.py
+```
+
+### 8) Test 8: Main pipeline
+```br
+python tests/test_main.py
+```
+### 9) Test 9: Output format verification
+```br
+python verify_output.py
+```
+
+## Run All Tests Together
+### Quick test run (recommended)
+```br
+pytest tests/ -q
+```
+### Verbose test run (see details)
+```br
+pytest tests/ -v
+```
+
+### Very detailed test run (see everything)
+```br
+pytest tests/ -v -s
+```
+
+### Show code coverage
+```br
+pytest tests/ --cov=src
+```
+
+### Verify OCR capability
+```br
+python test_ocr.py
+```
+
+## File Execution
+
+### Process PDFs (Main Command)
+- Command 1
+```br
+python -m src.main "Files"
+```
+
+## Processing Single PDF
+### Process ONE lease deed PDF
+- Command 2
+```br
+python -m src.main "Files\Rampura Mota S.No.-256 Lease Deed No.-854.pdf"
+```
+### Process ONE challan PDF
+- Command 3
+```br
+python -m src.main "Files\256 FINAL ORDER.pdf"
+```
+
+### Process with LLM enabled (requires API key)
+- Command 4
+```br
+python -m src.main "Files\Rampura Mota S.No.-256 Lease Deed No.-854.pdf" --use-llm
+```
+
+## Advanced Processing Commands
+### Process all PDFs with recursive scanning
+- Command 5
+```br
+python -m src.main "Files" --recursive
+```
+### Process all PDFs with batch reports
+- Command 6
+```br
+python -m src.main "Files" --with-reports
+```
+
+### Process all PDFs with custom output location
+- Command 7
+```br
+python -m src.main "Files" --verbose
+```
+
+### Process with all features enabled
+- Command 8
+```br
+python -m src.main "Files" --recursive --use-llm --with-reports --verbose
+```
+## Step 5: View Logs
+- Command 9
+```br
+type output\batch_report_*.txt
+```
+
+
+
+
+# Features
 
  - **Deterministic Extraction** - 14+ regex patterns for reliable data extraction  
  - **Smart LLM Routing** - 6-tier token optimization strategy  
@@ -64,7 +163,7 @@ python -m src.main ./pdf_folder/ --recursive --with-reports
  - **Excel Export** - 5-sheet formatted workbook with summaries  
  - **Recursive Scanning** - Process directories with nested PDFs  
 
-## CLI Options
+# CLI Options
 
 ```
 --output PATH              Save Excel results to custom path
@@ -74,7 +173,7 @@ python -m src.main ./pdf_folder/ --recursive --with-reports
 --with-reports            Generate batch report and performance metrics
 ```
 
-## Output Files
+# Output Files
 
 After execution, check output/ directory:
 - compliance_results_TIMESTAMP.xlsx - Main results workbook
@@ -82,7 +181,7 @@ After execution, check output/ directory:
 - performance_report_TIMESTAMP.txt - Timing and performance metrics
 - performance_data_TIMESTAMP.json - Machine-readable performance data
 
-## Project Structure
+# Project Structure
 
 ```
  src/
@@ -107,7 +206,7 @@ After execution, check output/ directory:
  REPORT.md                   # This file
 ```
 
-## Test Coverage
+# Test Coverage
 ## 📊 Test Coverage Report
 
 | File                              | Stmts | Miss | Cover |
@@ -200,21 +299,3 @@ After execution, check output/ directory:
 | fallback_ocr   | 225   | 0.000          |
 | none           | 885   | 0.000          |
 
-## Troubleshooting
-
-**Missing audit.db?**
-- Pipeline creates logs/audit.db automatically on first run
-
-**Low success rates?**
-- Enable --use-llm for fallback extraction
-- Check document quality and language support
-
-**Performance reports missing?**
-- Use --with-reports flag to generate reports after processing
-
-## Support
-
-For issues or questions, check:
-1. ARCHITECTURE.md - Detailed system design
-2. Test files in 	ests/ - Implementation examples
-3. Docstrings in source modules
