@@ -210,7 +210,7 @@ After execution, check output/ directory:
 ```
 
 # Test Coverage
-## 📊 Test Coverage Report
+##  Test Coverage Report
 
 | File                              | Stmts | Miss | Cover |
 |----------------------------------|------:|-----:|------:|
@@ -250,9 +250,9 @@ After execution, check output/ directory:
 - **Batch Processing:** 1800+ pages in 12 seconds
 
 # Audit Logs
-## 📊 Compliance Document Extraction - Batch Report
+## Compliance Document Extraction - Batch Report
 
-### 🔹 Summary Statistics
+###  Summary Statistics
 
 | Metric                 | Value |
 |----------------------|------:|
@@ -263,7 +263,7 @@ After execution, check output/ directory:
 
 ---
 
-### 🔹 Status Breakdown
+###  Status Breakdown
 
 | Status   | Count | Percentage |
 |---------|------:|-----------:|
@@ -273,7 +273,7 @@ After execution, check output/ directory:
 
 ---
 
-### 🔹 Document Type Breakdown
+###  Document Type Breakdown
 
 | Type           | Count | Percentage |
 |----------------|------:|-----------:|
@@ -283,7 +283,7 @@ After execution, check output/ directory:
 
 ---
 
-### 🔹 Confidence Distribution
+###  Confidence Distribution
 
 | Range     | Pages | Avg Confidence |
 |-----------|------:|---------------:|
@@ -293,7 +293,7 @@ After execution, check output/ directory:
 
 ---
 
-### 🔹 Extraction Methods
+###  Extraction Methods
 
 | Method         | Pages | Avg Confidence |
 |----------------|------:|---------------:|
