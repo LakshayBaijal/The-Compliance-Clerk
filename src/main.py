@@ -27,6 +27,8 @@ from src.extract_na import extract_na_permission
 from src.validate import Validator
 from src.audit import AuditLogger
 from src.export import ExcelExporter
+from src.batch_reporter import BatchReporter
+from src.performance_profiler import get_global_profiler
 
 logger = get_logger(__name__)
 
@@ -307,8 +309,13 @@ def process_batch(
 @click.option("--use-llm", is_flag=True, default=False, help="Enable LLM fallback for low-confidence extraction")
 @click.option("--disable-audit", is_flag=True, default=False, help="Disable SQLite audit logging")
 @click.option("--recursive", "-r", is_flag=True, default=False, help="Recursively scan subdirectories for PDFs")
-def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool):
+@click.option("--with-reports", is_flag=True, default=False, help="Generate batch report and performance report after processing")
+def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool, with_reports: bool):
     """Run Compliance Clerk pipeline on a PDF file or directory of PDFs."""
+    profiler = get_global_profiler()
+    if with_reports:
+        profiler.start()
+    
     result = process_batch(
         input_path=str(input_path),
         output_excel=str(output_excel) if output_excel else None,
@@ -325,6 +332,40 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
     click.echo(f"Success Rate    : {result['summary']['success_rate']}%")
     click.echo(f"Tokens Used     : {result['summary']['total_tokens']}")
     click.echo(f"Excel Output    : {result['output_excel']}")
+    
+    # Generate optional reports
+    if with_reports:
+        profiler.end()
+        
+        click.echo("\n=== Generating Reports ===")
+        
+        # Generate batch report
+        try:
+            from pathlib import Path as PathlibPath
+            audit_db_path = PathlibPath("logs/audit.db")
+            if audit_db_path.exists():
+                reporter = BatchReporter(str(audit_db_path))
+                summary = reporter.get_batch_summary()
+                
+                # Save batch report
+                output_dir = PathlibPath("output")
+                output_dir.mkdir(exist_ok=True)
+                report_file = output_dir / f"batch_report_{time.strftime('%Y%m%d_%H%M%S')}.txt"
+                report_file.write_text(reporter.generate_text_report(summary))
+                click.echo(f"✓ Batch Report: {report_file}")
+            else:
+                click.echo("⚠ No audit database found for batch report")
+        except Exception as e:
+            click.echo(f"⚠ Failed to generate batch report: {e}")
+        
+        # Generate performance report
+        try:
+            output_dir = PathlibPath("output")
+            output_dir.mkdir(exist_ok=True)
+            perf_file, json_file = profiler.save_report(str(output_dir))
+            click.echo(f"✓ Performance Report: {perf_file}")
+        except Exception as e:
+            click.echo(f"⚠ Failed to generate performance report: {e}")
 
 
 if __name__ == "__main__":
