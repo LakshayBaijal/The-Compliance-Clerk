@@ -131,8 +131,7 @@ Name                             Stmts   Miss  Cover
 |src\performance_profiler.py      |  113   |  82   | 27%   |     
 |src\schemas.py                   |   73   |   1   | 99%   |     
 |src\validate.py                  |  184   |  27   | 85%   |     
-|----------------------------------|---------|-------|--      |  
-TOTAL                             2275    715    69%  
+|TOTAL                            | 2275    |715    |69%  |
 
 ## Document Types Supported
 
