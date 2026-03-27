@@ -105,8 +105,47 @@ def process_batch(
         for page in ingested.get("pages", []):
             page_num = page.get("page_num", 0)
             text = page.get("text", "")
+            has_images = page.get("has_images", False)
+            
+            # Handle pages with no extractable text
+            if (not text or not text.strip()):
+                if has_images:
+                    # Image-only page - still try to process but mark as partial/failed
+                    logger.info(f"Page {page_num} has images but no extractable text")
+                else:
+                    # No text, no images - skip this page
+                    logger.warning(f"Skipping page {page_num} - no readable text and no images")
+                    result_row = {
+                        "file_name": pdf_file.name,
+                        "page_number": page_num,
+                        "document_type": "UNKNOWN",
+                        "extraction_method": "none",
+                        "confidence": 0.0,
+                        "status": "failed",
+                        "tokens_used": 0,
+                        "validation_issues": ["No readable text and no images on page"],
+                        "validated_data": {},
+                        "echallan_data": {},
+                        "na_data": {},
+                    }
+                    all_results.append(result_row)
+                    
+                    if audit:
+                        audit.log_extraction(
+                            file_name=pdf_file.name,
+                            page_number=page_num,
+                            document_type="UNKNOWN",
+                            extraction_method="none",
+                            confidence=0.0,
+                            fields_extracted=0,
+                            validation_issues=1,
+                            status="failed",
+                            raw_extraction=json.dumps({}),
+                            validated_extraction=json.dumps({}),
+                        )
+                    continue
 
-            classification = classifier.classify_with_structure(text, page_num)
+            classification = classifier.classify_with_structure(text, page_num, pdf_file.name)
             doc_type = _to_doc_type(classification)
 
             tokens_used = 0
@@ -116,21 +155,27 @@ def process_batch(
             if doc_type == DocumentType.ECHALLAN:
                 det = extract_echallan(text)
                 extracted_data = det["data"].model_dump(exclude_none=True)
-                confidence = float(det.get("overall_confidence", deterministic_conf))
+                det_confidence = float(det.get("overall_confidence", 0.0))
+                # Use extraction confidence, but if 0, use classification confidence
+                confidence = det_confidence if det_confidence > 0 else deterministic_conf
                 fields_extracted = int(det.get("extracted_fields", 0))
                 bucket_key = "echallan_data"
             elif doc_type == DocumentType.NA_PERMISSION:
                 det = extract_na_permission(text)
                 extracted_data = det["data"].model_dump(exclude_none=True)
-                confidence = float(det.get("overall_confidence", deterministic_conf))
+                det_confidence = float(det.get("overall_confidence", 0.0))
+                # Use extraction confidence, but if 0, use classification confidence
+                confidence = det_confidence if det_confidence > 0 else deterministic_conf
                 fields_extracted = int(det.get("extracted_fields", 0))
                 bucket_key = "na_data"
             else:
+                # Document type not recognized
+                logger.warning(f"Unknown document type on page {page_num}")
                 extracted_data = {}
                 confidence = float(deterministic_conf)
                 fields_extracted = 0
                 bucket_key = "unknown_data"
-                extraction_method = "fallback_ocr"
+                extraction_method = "none"
 
             if use_llm and llm_client and doc_type != DocumentType.UNKNOWN and llm_client.should_use_llm(confidence):
                 extraction_method = "llm"

@@ -113,13 +113,14 @@ class DocumentClassifier:
             "classification_method": "keyword_match"
         }
     
-    def classify_with_structure(self, text: str, page_num: int = 0) -> Dict:
+    def classify_with_structure(self, text: str, page_num: int = 0, filename: str = "") -> Dict:
         """
         Classify using both text content and document structure.
         
         Args:
             text: Extracted text from the page
             page_num: Page number for reference
+            filename: PDF filename for additional context
         
         Returns:
             Dictionary with improved classification results
@@ -127,7 +128,25 @@ class DocumentClassifier:
         # Start with text-based classification
         classification = self.classify_text(text, page_num)
         
+        # If unknown and filename suggests NA/Lease, use filename hint
         if classification["document_type"] == DocumentType.UNKNOWN:
+            filename_lower = filename.lower()
+            if "lease" in filename_lower or "deed" in filename_lower:
+                logger.debug(f"Filename suggests NA/Lease document: {filename}")
+                return {
+                    "page_num": page_num,
+                    "document_type": DocumentType.NA_PERMISSION,
+                    "confidence": 0.5,
+                    "classification_method": "filename_hint"
+                }
+            elif "order" in filename_lower:
+                logger.debug(f"Filename suggests Order/Challan: {filename}")
+                return {
+                    "page_num": page_num,
+                    "document_type": DocumentType.ECHALLAN,
+                    "confidence": 0.5,
+                    "classification_method": "filename_hint"
+                }
             return classification
         
         # Look for structural patterns
