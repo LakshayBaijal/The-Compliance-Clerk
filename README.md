@@ -2,9 +2,6 @@
 
 Production-grade compliance document extraction system with intelligent token optimization and comprehensive audit logging.
 
-**Status:**  Production Ready (101/101 Tests Passing)  
-**Version:** 1.0 Stable  
-**Last Updated:** March 27, 2026
 
 ## Quick Start
 
@@ -15,7 +12,7 @@ cd The-Compliance-Clerk
 ```
 
 ### 2) Setup Environment
-```powershell
+```br
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -23,12 +20,12 @@ pip install -r requirements.txt
 Create .env file
 ### 3) Configure API Key
 Edit .env and add your Groq API key:
-```env
+```br
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ### 4) Run Tests (Recommended)
-```powershell
+```br
 pytest -q  # All 101 tests
 pytest -v  # Verbose output
 ```
@@ -36,22 +33,22 @@ pytest -v  # Verbose output
 ### 5) Execute Pipeline
 
 **Single PDF:**
-```powershell
+```br
 python -m src.main sample.pdf --output results.xlsx
 ```
 
 **Directory (with reports):**
-```powershell
+```br
 python -m src.main ./pdf_folder/ --with-reports
 ```
 
 **With LLM Fallback:**
-```powershell
+```br
 python -m src.main ./pdf_folder/ --use-llm --with-reports
 ```
 
 **Recursive Subdirectories:**
-```powershell
+```br
 python -m src.main ./pdf_folder/ --recursive --with-reports
 ```
 
@@ -106,27 +103,36 @@ After execution, check output/ directory:
  logs/                       # audit.db and compliance_clerk.log
  output/                     # Excel and report outputs
  requirements.txt            # Python dependencies
- ARCHITECTURE.md             # Detailed system design
  README.md                   # This file
+ REPORT.md                   # This file
 ```
 
 ## Test Coverage
 
-**Total Tests:** 101/101 Passing 
-
-| Module | Tests | Status |
-|--------|-------|--------|
-| schemas | 7 |  |
-| ingest | 8 |  |
-| classify | 10 |  |
-| extractors | 14 |  |
-| validate | 24 |  |
-| export | 10 |  |
-| llm_client | 11 |  |
-| main | 5 |  |
-| config_logger | 4 |  |
-| batch_reporter | 4 |  |
-| performance_profiler | 4 |  |
+Name                             Stmts   Miss  Cover        
+----------------------------------------------------        
+src\__init__.py                      0      0   100%        
+src\audit.py                       121      0   100%        
+src\batch_reporter.py              156    137    12%        
+src\classify.py                     93      9    90%        
+src\compliance_csv_exporter.py      79      8    90%        
+src\compliance_exporter.py         116     94    19%        
+src\config.py                       23      1    96%        
+src\export.py                      197      2    99%        
+src\extract_echallan.py             48      3    94%        
+src\extract_na.py                   61      3    95%        
+src\fuzzy_matcher.py               137    137     0%        
+src\image_only_extractor.py         87     72    17%        
+src\ingest.py                      172     64    63%        
+src\llm_client.py                   71     10    86%        
+src\logger.py                       25      1    96%        
+src\main.py                        214     61    71%        
+src\output_generator.py            305      3    99%        
+src\performance_profiler.py        113     82    27%        
+src\schemas.py                      73      1    99%        
+src\validate.py                    184     27    85%        
+----------------------------------------------------        
+TOTAL                             2275    715    69%  
 
 ## Document Types Supported
 
