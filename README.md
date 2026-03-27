@@ -108,31 +108,31 @@ After execution, check output/ directory:
 ```
 
 ## Test Coverage
+## 📊 Test Coverage Report
 
-Name                             Stmts   Miss  Cover
-----------------------------------------------------
-src/__init__.py                      0      0   100%
-src/audit.py                       121      0   100%
-src/batch_reporter.py              156    137    12%
-src/classify.py                     93      9    90%
-src/compliance_csv_exporter.py      79      8    90%
-src/compliance_exporter.py         116     94    19%
-src/config.py                       23      1    96%
-src/export.py                      197      2    99%
-src/extract_echallan.py             48      3    94%
-src/extract_na.py                   61      3    95%
-src/fuzzy_matcher.py               137    137     0%
-src/image_only_extractor.py         87     72    17%
-src/ingest.py                      172     64    63%
-src/llm_client.py                   71     10    86%
-src/logger.py                       25      1    96%
-src/main.py                        214     61    71%
-src/output_generator.py            305      3    99%
-src/performance_profiler.py        113     82    27%
-src/schemas.py                      73      1    99%
-src/validate.py                    184     27    85%
-----------------------------------------------------
-TOTAL                             2275    715    69%
+| File                              | Stmts | Miss | Cover |
+|----------------------------------|------:|-----:|------:|
+| src/__init__.py                  |     0 |    0 | 100%  |
+| src/audit.py                     |   121 |    0 | 100%  |
+| src/batch_reporter.py            |   156 |  137 |  12%  |
+| src/classify.py                  |    93 |    9 |  90%  |
+| src/compliance_csv_exporter.py   |    79 |    8 |  90%  |
+| src/compliance_exporter.py       |   116 |   94 |  19%  |
+| src/config.py                    |    23 |    1 |  96%  |
+| src/export.py                    |   197 |    2 |  99%  |
+| src/extract_echallan.py          |    48 |    3 |  94%  |
+| src/extract_na.py                |    61 |    3 |  95%  |
+| src/fuzzy_matcher.py             |   137 |  137 |   0%  |
+| src/image_only_extractor.py      |    87 |   72 |  17%  |
+| src/ingest.py                    |   172 |   64 |  63%  |
+| src/llm_client.py                |    71 |   10 |  86%  |
+| src/logger.py                    |    25 |    1 |  96%  |
+| src/main.py                      |   214 |   61 |  71%  |
+| src/output_generator.py          |   305 |    3 |  99%  |
+| src/performance_profiler.py      |   113 |   82 |  27%  |
+| src/schemas.py                   |    73 |    1 |  99%  |
+| src/validate.py                  |   184 |   27 |  85%  |
+| **TOTAL**                        | **2275** | **715** | **69%** |
 
 ## Document Types Supported
 
