@@ -21,44 +21,54 @@ class EchallanExtractor:
     
     def __init__(self):
         """Initialize with regex patterns for eChallan fields."""
+        # These patterns are designed to work with OCR'd text (imperfect matches)
         self.patterns = {
             "challan_number": [
-                r'challan\s*(?:no\.?|number)\s*[:=]?\s*([A-Z0-9\-]+)',
-                r'(?:ticket|challan)\s*#\s*([A-Z0-9\-]+)'
+                r'challan\s*(?:no\.?|num?ber|no\.?)\s*[:=]?\s*([A-Z0-9\-/]+)',
+                r'(?:ticket|challan|ref)\s*#?\s*[:=]?\s*([A-Z0-9\-/]{4,})',
+                r'(?:citation|reference|ticket)\s*(?:no\.?)\s*[:=]?\s*([A-Z0-9\-/]+)',
+                r'^(?:challan|ticket|citation)\s*(?:no\.?|#)\s*[:=]?\s*([A-Z0-9\-/]+)',
             ],
             "vehicle_reg_number": [
-                r'(?:vehicle\s*)?(?:reg(?:istration)?|registration)\s*(?:no\.?|number)\s*[:=]?\s*([A-Z0-9\-]+)',
-                r'reg\s*#\s*([A-Z0-9\-]+)',
-                r'([A-Z]{2}\-\d{2}\-[A-Z]{2}\-\d{4})'  # Standard India format
+                r'(?:vehicle\s*)?(?:reg(?:istration)?|registration|plate|number)\s*(?:no\.?|num?ber)\s*[:=]?\s*([A-Z0-9\-/]+)',
+                r'(?:reg|registration)\s*#?\s*[:=]?\s*([A-Z0-9\-/]{4,})',
+                r'([A-Z]{2}\s*[-/]?\s*\d{2}\s*[-/]?\s*[A-Z]{2}\s*[-/]?\s*\d{4})',  # India format with spaces
+                r'(?:vehicle\s*)?(?:no\.?|number)\s*[:=]?\s*([A-Z0-9\-/]+)',
             ],
             "violation_code": [
-                r'violation\s*(?:code|section)\s*[:=]?\s*([A-Z0-9]+)',
-                r'(?:code|section)\s*[:=]?\s*([A-Z0-9]{2,})'
+                r'(?:violation|offence|section|code)\s*(?:code|section|no\.?|num?ber)?\s*[:=]?\s*([A-Z0-9\-/]+)',
+                r'(?:motor\s*)?(?:vehicles\s*)?(?:act|rule).*?(?:section|sec\.?)\s*(\d+)',
+                r'^(?:code|section)\s*[:=]?\s*([A-Z0-9]{2,})',
             ],
             "violation_description": [
-                r'violation\s*(?:desc|description)\s*[:=]?\s*([^\n]+)',
-                r'(?:offence|violation)\s*[:=]?\s*([^\n]+)'
+                r'(?:violation|offence|description|reason|fine)\s*(?:desc|description)?\s*[:=]?\s*([^\n:]+)',
+                r'(?:offence|violation)\s*[:=]?\s*([^\n:]+)',
+                r'(?:reason|description)\s*[:=]?\s*([^\n:]+)',
+                r'(?:over?-?speed|jump.*?red|no.*?helmet|drunk.*?drive|wrong.*?lane)',  # Common violations
             ],
             "amount_due": [
-                r'(?:amount|fine|penalty)\s*(?:due)?[:=]?\s*(?:(?:rs|inr|₹)\.?\s*)?(\d+(?:\.\d{2})?)',
+                r'(?:amount|fine|penalty|fee)\s*(?:due)?[:=]?\s*(?:(?:rs|inr|₹)\.?\s*)?(\d+(?:\.\d{2})?)',
                 r'₹\s*(\d+(?:\.\d{2})?)',
-                r'([0-9]+)\s*(?:rs|inr|rupees)'
+                r'(?:rupees?|rs|inr)\s*(?:[:=])?\s*(\d+(?:\.\d{2})?)',
+                r'(?:total|amount|fine)\s*(?:is|:)?\s*(?:rs|inr|₹)?\s*(\d+(?:\.\d{2})?)',
             ],
             "payment_status": [
-                r'(?:payment\s*)?status\s*[:=]?\s*(pending|paid|dispute[d]?)',
-                r'status\s*[:=]?\s*(active|inactive|cleared|outstanding)'
+                r'(?:payment\s*)?status\s*[:=]?\s*(pending|paid|dispute[d]?|outstanding|cleared)',
+                r'(?:status|payment)\s*[:=]?\s*(active|inactive|cleared|paid|pending)',
             ],
             "payment_due_date": [
-                r'(?:payment\s*)?(?:due\s*)?date\s*[:=]?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})',
-                r'due\s*[:=]?\s*(\d{4}-\d{2}-\d{2})'
+                r'(?:payment\s*)?(?:due|deadline)\s*(?:date|by)?\s*[:=]?\s*(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4})',
+                r'(?:on|by|date)\s*[:=]?\s*(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4})',
+                r'(\d{4}[-/\.]\d{2}[-/\.]\d{2})',
             ],
             "officer_id": [
-                r'officer\s*(?:id|code)\s*[:=]?\s*([A-Z0-9\-]+)',
-                r'(?:constable|officer)\s*#\s*([A-Z0-9\-]+)'
+                r'(?:officer|constable|badge|id)\s*(?:id|code|#|no\.?)?\s*[:=]?\s*([A-Z0-9\-/]+)',
+                r'(?:issued\s*)?by\s*(?:officer|constable)\s*(?:id|#|no\.?)?\s*[:=]?\s*([A-Z0-9\-/]+)',
             ],
             "issuing_date": [
-                r'(?:issued|issue)\s*(?:date|on)\s*[:=]?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})',
-                r'(?:date|issued)\s*[:=]?\s*(\d{4}-\d{2}-\d{2})'
+                r'(?:issued|issue|dated|on)\s*(?:date|on)?\s*[:=]?\s*(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4})',
+                r'(?:date|issued)\s*[:=]?\s*(\d{4}[-/\.]\d{2}[-/\.]\d{2})',
+                r'^(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4})',  # Start of line
             ]
         }
     
@@ -76,13 +86,22 @@ class EchallanExtractor:
         if field_name not in self.patterns:
             return None, 0.0
         
-        for pattern in self.patterns[field_name]:
+        for idx, pattern in enumerate(self.patterns[field_name]):
             match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
             if match:
                 value = match.group(1).strip()
-                confidence = 0.95 if len(pattern) < 50 else 0.85  # Simpler patterns = higher confidence
-                logger.debug(f"Extracted {field_name}: {value} (confidence: {confidence})")
-                return value, confidence
+                
+                # Confidence decreases with pattern index (earlier patterns are more reliable)
+                pattern_confidence = 0.95 - (idx * 0.1)
+                
+                # Reduce confidence based on value quality
+                if not value or len(value) < 2:
+                    pattern_confidence *= 0.5
+                elif len(value) > 100:
+                    pattern_confidence *= 0.7  # Long values are less reliable
+                
+                logger.debug(f"Extracted {field_name}: {value} (confidence: {pattern_confidence:.2f})")
+                return value, pattern_confidence
         
         return None, 0.0
     
@@ -109,13 +128,31 @@ class EchallanExtractor:
         officer_id, conf_officer = self._extract_field(text, "officer_id")
         issuing_date, conf_issue_date = self._extract_field(text, "issuing_date")
         
-        # Calculate overall confidence
-        all_confidences = [
-            conf_challan, conf_vehicle, conf_vcode, conf_vdesc,
-            conf_amount, conf_payment, conf_due_date, conf_officer, conf_issue_date
-        ]
-        extracted_count = sum(1 for c in all_confidences if c > 0)
-        overall_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        # Weight fields by importance: core fields (challan, vehicle, violation, amount) > secondary
+        field_scores = {
+            "challan_number": (conf_challan, 0.20),      # Critical
+            "vehicle_reg_number": (conf_vehicle, 0.20),  # Critical
+            "violation_code": (conf_vcode, 0.15),        # Important
+            "violation_description": (conf_vdesc, 0.15), # Important
+            "amount_due": (conf_amount, 0.15),           # Important
+            "payment_status": (conf_payment, 0.05),      # Secondary
+            "payment_due_date": (conf_due_date, 0.05),   # Secondary
+            "officer_id": (conf_officer, 0.03),          # Optional
+            "issuing_date": (conf_issue_date, 0.02)      # Optional
+        }
+        
+        # Calculate weighted confidence
+        weighted_sum = sum(score * weight for score, weight in field_scores.values())
+        overall_confidence = weighted_sum
+        
+        # Boost if critical fields are present
+        critical_count = (1 if challan_number else 0) + (1 if vehicle_reg else 0)
+        if critical_count == 2:
+            overall_confidence = min(1.0, overall_confidence + 0.15)
+        elif critical_count == 0:
+            overall_confidence *= 0.4  # Penalize missing critical fields
+        
+        overall_confidence = max(0.0, min(1.0, overall_confidence))
         
         # Convert amount to float if present
         amount_float = None
@@ -144,8 +181,10 @@ class EchallanExtractor:
         return {
             "data": echallan_data,
             "overall_confidence": overall_confidence,
-            "extracted_fields": extracted_count,
-            "total_fields": len(all_confidences),
+            "extracted_fields": sum(1 for v in [challan_number, vehicle_reg, violation_code, 
+                                               violation_desc, amount_due, payment_status,
+                                               payment_due_date, officer_id, issuing_date] if v),
+            "total_fields": 9,
             "field_confidences": {
                 "challan_number": conf_challan,
                 "vehicle_reg_number": conf_vehicle,

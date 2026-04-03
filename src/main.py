@@ -231,15 +231,13 @@ def process_batch(
                 extraction_method = "none"
 
             # Use LLM if:
-            # 1. User requested it AND confidence is low
-            # 2. OR it's an image-only page (force LLM)
-            should_use_llm_here = (use_llm or force_llm_for_images) and llm_client
+            # 1. For eChallan: Use LLM if confidence is low (deterministic failed)
+            # 2. For NA_PERMISSION: Trust filename extraction, skip LLM
+            should_use_llm_here = use_llm and llm_client and doc_type == DocumentType.ECHALLAN
             
-            if should_use_llm_here and doc_type != DocumentType.UNKNOWN:
-                # For image-only pages, lower threshold to trigger LLM
-                threshold = 0.5 if is_image_only else llm_client.confidence_threshold
-                
-                if is_image_only or confidence < threshold:
+            if should_use_llm_here:
+                # For eChallan, use LLM if deterministic confidence is low
+                if confidence < llm_client.confidence_threshold:
                     extraction_method = "llm"
                     llm_data, llm_confidence, tokens_used = llm_client.extract_with_fallback(
                         text=text if text.strip() else f"[Image-only page - Document type: {doc_type.value}]",
