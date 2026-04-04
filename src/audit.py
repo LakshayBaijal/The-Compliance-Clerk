@@ -88,6 +88,23 @@ class AuditLogger:
             """
         )
 
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS llm_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                extraction_id INTEGER,
+                model_name TEXT,
+                prompt_text TEXT,
+                response_text TEXT,
+                tokens_used INTEGER,
+                success INTEGER,
+                error_message TEXT,
+                FOREIGN KEY(extraction_id) REFERENCES extraction_logs(id)
+            )
+            """
+        )
+
         conn.commit()
         conn.close()
         logger.info("Audit schema initialized")
@@ -241,6 +258,40 @@ class AuditLogger:
         logger.debug(
             f"Logged token usage: {tokens_used} tokens ({tier}) for extraction {extraction_id}"
         )
+
+    def log_llm_interaction(
+        self,
+        extraction_id: int,
+        model_name: str,
+        prompt_text: str,
+        response_text: str,
+        tokens_used: int,
+        success: bool,
+        error_message: Optional[str] = None,
+    ):
+        """Log raw LLM prompt/response for quality and debugging audit."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO llm_logs
+            (extraction_id, model_name, prompt_text, response_text, tokens_used, success, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                extraction_id,
+                model_name,
+                prompt_text,
+                response_text,
+                int(tokens_used),
+                1 if success else 0,
+                error_message,
+            ),
+        )
+
+        conn.commit()
+        conn.close()
 
     def query_extractions(
         self,

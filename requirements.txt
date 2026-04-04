@@ -18,5 +18,12 @@ easyocr==1.6.1
 # CLI & Logging
 click==8.1.7
 
+# Local LLM fallback (required for --use-llm in current code)
+sentence-transformers==2.6.1
+torch==2.1.2
+numpy==1.24.4
+scikit-learn==1.3.2
+tqdm==4.66.5
+
 # Testing
 pytest==7.4.3

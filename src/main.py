@@ -13,6 +13,7 @@ Orchestrates:
 
 import json
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -30,7 +31,6 @@ from src.audit import AuditLogger
 from src.export import ExcelExporter
 from src.compliance_exporter import ComplianceExporter
 from src.compliance_csv_exporter import ComplianceCSVExporter
-from src.compliance_exporter import ComplianceExporter
 from src.batch_reporter import BatchReporter
 from src.performance_profiler import get_global_profiler
 from src.output_generator import OutputGenerator
@@ -116,7 +116,16 @@ def process_batch(
     try:
         from src.llm_client import LLMClient
         llm_client = LLMClient()
-        logger.info("LLM Client initialized for fallback on image-only pages")
+        if use_llm and not getattr(llm_client, "embedder", None):
+            raise RuntimeError(
+                "--use-llm requested but embedding backend is unavailable. "
+                "Install dependencies in your active environment: "
+                "pip install sentence-transformers torch"
+            )
+        if getattr(llm_client, "embedder", None):
+            logger.info("LLM Client initialized for fallback on image-only pages")
+        else:
+            logger.warning("LLM backend unavailable; running deterministic/image-only fallback only")
     except Exception as e:
         logger.warning(f"Failed to initialize LLM client: {e}")
         if use_llm:
@@ -303,6 +312,28 @@ def process_batch(
                         confidence_after=final_confidence,
                     )
 
+                    llm_model_name = llm_client.model if llm_client else "unknown"
+                    prompt_payload = {
+                        "file_name": pdf_file.name,
+                        "page_number": page_num,
+                        "document_type": doc_type.name,
+                        "deterministic_confidence": confidence,
+                        "input_excerpt": (text or "")[:1200],
+                    }
+                    response_payload = {
+                        "extracted_data": extracted_data,
+                        "validated_data": validated_data,
+                        "final_confidence": final_confidence,
+                    }
+                    audit.log_llm_interaction(
+                        extraction_id=extraction_id,
+                        model_name=llm_model_name,
+                        prompt_text=json.dumps(prompt_payload, ensure_ascii=False),
+                        response_text=json.dumps(response_payload, ensure_ascii=False),
+                        tokens_used=int(tokens_used),
+                        success=True,
+                    )
+
                 if tokens_used > 0:
                     model_name = llm_client.model if llm_client else "unknown"
                     audit.log_token_usage(
@@ -365,6 +396,7 @@ def process_batch(
 def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_audit: bool, recursive: bool, with_reports: bool, verbose: bool):
     """Run Compliance Clerk pipeline on a PDF file or directory of PDFs."""
     profiler = get_global_profiler()
+    run_start_utc = datetime.utcnow()
     if with_reports:
         profiler.start()
     
@@ -389,6 +421,7 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
     
     # Generate optional reports
     if with_reports:
+        run_end_utc = datetime.utcnow()
         profiler.end()
         
         click.echo("\n=== Generating Reports ===")
@@ -399,7 +432,15 @@ def main(input_path: Path, output_excel: Optional[Path], use_llm: bool, disable_
             audit_db_path = PathlibPath("logs/audit.db")
             if audit_db_path.exists():
                 reporter = BatchReporter(str(audit_db_path))
-                summary = reporter.get_batch_summary()
+
+                # SQLite CURRENT_TIMESTAMP is UTC; use a small buffer to avoid boundary misses
+                window_start = (run_start_utc - timedelta(seconds=5)).strftime("%Y-%m-%d %H:%M:%S")
+                window_end = (run_end_utc + timedelta(seconds=5)).strftime("%Y-%m-%d %H:%M:%S")
+
+                summary = reporter.get_batch_summary(
+                    start_time=window_start,
+                    end_time=window_end,
+                )
                 
                 # Save batch report
                 output_dir = PathlibPath("output")

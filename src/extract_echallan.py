@@ -31,7 +31,7 @@ class EchallanExtractor:
             ],
             "vehicle_reg_number": [
                 r'(?:vehicle\s*)?(?:reg(?:istration)?|registration|plate|number)\s*(?:no\.?|num?ber)\s*[:=]?\s*([A-Z0-9\-/]+)',
-                r'(?:reg|registration)\s*#?\s*[:=]?\s*([A-Z0-9\-/]{4,})',
+                r'(?:registration|reg)\b\s*(?:no\.?|num?ber|#)?\s*[:=]?\s*([A-Z0-9\-/]*\d[A-Z0-9\-/]*)',
                 r'([A-Z]{2}\s*[-/]?\s*\d{2}\s*[-/]?\s*[A-Z]{2}\s*[-/]?\s*\d{4})',  # India format with spaces
                 r'(?:vehicle\s*)?(?:no\.?|number)\s*[:=]?\s*([A-Z0-9\-/]+)',
             ],

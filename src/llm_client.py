@@ -229,15 +229,15 @@ class LLMClient:
             elif doc_type == DocumentType.NA_PERMISSION:
                 # NA_PERMISSION field names
                 field_queries = {
-                    "property_owner_name": "property owner name person",
+                    "owner_name": "property owner name person",
                     "property_address": "property address location area street",
-                    "survey_number": "survey number plot id sno",
-                    "area": "area sq ft size square meter",
+                    "plot_number": "survey number plot id sno",
+                    "property_area": "area sq ft size square meter",
                     "permission_type": "permission type approval kind class",
                     "permission_date": "permission date issued when",
-                    "authority": "authority issued by department office",
-                    "permission_number": "permission number id reference",
-                    "notes": "notes remarks remarks conditions"
+                    "issuing_authority": "authority issued by department office",
+                    "property_id": "permission number id reference",
+                    "remarks": "notes remarks remarks conditions"
                 }
                 
                 text_lines = text.split('\n')
@@ -281,12 +281,26 @@ class LLMClient:
             blended_confidence = deterministic_confidence
             tokens_used = 0
 
+        result = self._enforce_schema(doc_type, result)
+
         logger.info(
             f"Semantic extraction complete - "
             f"confidence: {blended_confidence:.3f}, tokens: {tokens_used}"
         )
 
         return result, blended_confidence, tokens_used
+
+    def _enforce_schema(self, doc_type: DocumentType, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure extracted payload is schema-valid JSON-compatible data."""
+        try:
+            if doc_type == DocumentType.ECHALLAN:
+                return EchallanData(**result).model_dump(exclude_none=True)
+            if doc_type == DocumentType.NA_PERMISSION:
+                return NAPermissionData(**result).model_dump(exclude_none=True)
+            return result
+        except Exception as e:
+            logger.warning(f"Schema enforcement fallback: {e}")
+            return result
 
     def _extract_value_from_match(self, text: str, field_name: str, similarity: float) -> Optional[str]:
         """

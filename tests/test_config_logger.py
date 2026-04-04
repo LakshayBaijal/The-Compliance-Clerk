@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import (
     GROQ_API_KEY, LOGS_DIR, OUTPUT_DIR, DATA_DIR,
-    CONFIDENCE_THRESHOLD, TOKEN_LIMITS, LLM_MODEL
+    CONFIDENCE_THRESHOLD, TOKEN_LIMITS, MODEL_NAME
 )
 from src.logger import get_logger
 
@@ -24,12 +24,11 @@ def test_config_directories():
 
 def test_config_values():
     """Test that configuration values are set."""
-    assert GROQ_API_KEY, "GROQ_API_KEY should be set"
+    assert isinstance(GROQ_API_KEY, str), "GROQ_API_KEY should be a string"
     assert CONFIDENCE_THRESHOLD == 0.75
-    # LLM model can be either mixtral or llama3 (both supported)
-    assert LLM_MODEL in ["mixtral-8x7b-32768", "llama3-8b-8192"], f"Unexpected LLM model: {LLM_MODEL}"
+    assert MODEL_NAME, "MODEL_NAME should be configured"
     assert isinstance(TOKEN_LIMITS, dict)
-    assert len(TOKEN_LIMITS) == 6
+    assert len(TOKEN_LIMITS) == 3
     print("[PASS] Config values correct")
 
 

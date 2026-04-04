@@ -169,16 +169,16 @@ class ComplianceCSVExporter:
             # Use echallan_data field (contains validated extraction data)
             echallan_data = result.get("echallan_data", {})
             status = result.get("status", "failed").upper()
-            payment_status = "PAID" if echallan_data.get("paid") else "UNPAID"
+            payment_status = echallan_data.get("payment_status") or "UNKNOWN"
 
             row = {
                 "Sr.no.": sr_no,
-                "Vehicle Reg.": echallan_data.get("vehicle_registration") or echallan_data.get("vehicle_reg"),
+                "Vehicle Reg.": echallan_data.get("vehicle_reg_number") or echallan_data.get("vehicle_registration"),
                 "Challan No.": echallan_data.get("challan_number") or echallan_data.get("challan_no"),
-                "Violation": echallan_data.get("violation_code") or echallan_data.get("violation"),
+                "Violation": echallan_data.get("violation_description") or echallan_data.get("violation_code"),
                 "Amount Due": echallan_data.get("amount_due") or echallan_data.get("amount"),
-                "Date Issued": echallan_data.get("issue_date") or echallan_data.get("date_issued"),
-                "Due Date": echallan_data.get("due_date"),
+                "Date Issued": echallan_data.get("issuing_date") or echallan_data.get("issue_date"),
+                "Due Date": echallan_data.get("payment_due_date") or echallan_data.get("due_date"),
                 "Status": status,
                 "Payment Status": payment_status,
             }

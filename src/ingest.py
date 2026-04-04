@@ -157,8 +157,20 @@ class PDFIngestor:
                             return text.strip() if text else ""
                         except Exception as basic_e:
                             logger.debug(f"Basic OCR also failed: {basic_e}")
-                            Path(tmp.name).unlink()
-                            return ""
+                            try:
+                                import easyocr
+
+                                reader = easyocr.Reader(["en"], gpu=False)
+                                easy_results = reader.readtext(tmp.name, detail=0, paragraph=True)
+                                Path(tmp.name).unlink()
+                                easy_text = "\n".join([str(t).strip() for t in easy_results if str(t).strip()])
+                                if easy_text:
+                                    logger.debug(f"EasyOCR extracted {len(easy_text)} chars on page {page_num}")
+                                return easy_text
+                            except Exception as easy_e:
+                                logger.debug(f"EasyOCR fallback failed: {easy_e}")
+                                Path(tmp.name).unlink()
+                                return ""
                             
         except ImportError:
             logger.debug("pytesseract not available for OCR - install pytesseract and Tesseract binary")
@@ -241,7 +253,7 @@ class PDFIngestor:
                 ocr_reason = "Image-only page (scanned document)"
             
             # Condition 2: Very minimal text despite having images (mostly scanned with some artifacts)
-            elif has_images and len(text.strip()) < 100:
+            elif has_images and len(text.strip()) < 140:
                 should_use_ocr = True
                 ocr_reason = f"Minimal text ({len(text.strip())} chars) + images on page"
             
@@ -258,11 +270,16 @@ class PDFIngestor:
                 logger.debug(f"Attempting OCR on page {page_num}: {ocr_reason}")
                 try:
                     ocr_text = self._extract_text_ocr(page_num)
-                    if ocr_text and len(ocr_text.strip()) > 50:
+                    existing_len = len(text.strip())
+                    ocr_len = len(ocr_text.strip()) if ocr_text else 0
+
+                    if ocr_len >= 30 and (existing_len == 0 or ocr_len > int(existing_len * 1.3)):
                         text = ocr_text
                         logger.info(f"OCR successful on page {page_num}: extracted {len(text)} chars ({ocr_reason})")
-                    elif ocr_text and len(ocr_text.strip()) > 0:
-                        logger.debug(f"OCR partial on page {page_num}: only {len(ocr_text.strip())} chars")
+                    elif ocr_len > 0:
+                        logger.debug(
+                            f"OCR partial on page {page_num}: ocr_len={ocr_len}, existing_len={existing_len}"
+                        )
                     else:
                         logger.debug(f"OCR returned empty text on page {page_num}")
                 except Exception as e:
