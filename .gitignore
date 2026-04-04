@@ -27,6 +27,13 @@ output/
 data/*
 !data/.gitkeep
 
+# Local model cache
+models/*
+!models/.gitkeep
+
+# Coverage artifacts
+.coverage
+
 # OS
 .DS_Store
 Thumbs.db
